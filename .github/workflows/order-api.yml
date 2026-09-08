@@ -55,7 +55,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ./Dockerfile.ci
+          file: ./Dockerfile
           push: true
           tags: |
             ghcr.io/mdkasims-ccg/mango.services.orderapi:latest
