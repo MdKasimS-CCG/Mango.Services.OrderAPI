@@ -1,8 +1,13 @@
 name: OrderAPI CI/CD
 
 on:
+  pull_request:
+    branches:
+      - main
+
   push:
     branches:
+      - main
       - feature/megha-orderapi
 
 permissions:
@@ -45,21 +50,22 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push OrderAPI image
+      - name: Build OrderAPI image
         uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
-          push: true
+          push: ${{ github.event_name == 'push' }}
           tags: |
-            ghcr.io/mdkasims-ccg/mango.services.orderapi:latest
-            ghcr.io/mdkasims-ccg/mango.services.orderapi:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/mango.services.orderapi:latest
+            ghcr.io/${{ github.repository_owner }}/mango.services.orderapi:${{ github.sha }}
           secret-files: |
             nugetconfig=./nuget.ci.config
 
