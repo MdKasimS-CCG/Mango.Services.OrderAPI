@@ -6,12 +6,14 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<UserSecretsId>e4f14bb2-c5bd-426a-8682-9042c4aa5b20</UserSecretsId>
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+		<DockerfileContext>..\..</DockerfileContext>
+		<DockerComposeProjectPath>..\..\docker-compose.dcproj</DockerComposeProjectPath>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="AutoMapper" Version="15.0.1" />
 		<PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.0" />
-		<!--<PackageReference Include="Mango.MessageBus" Version="1.0.0" />-->
+		<PackageReference Include="Mango.MessageBus" Version="1.0.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.19" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.8" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.8" />
@@ -25,7 +27,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\Integration\Mango.MessageBus\Mango.MessageBus.csproj" />
+		<!--<ProjectReference Include="..\..\Integration\Mango.MessageBus\Mango.MessageBus.csproj" />-->
 	</ItemGroup>
 
 </Project>
