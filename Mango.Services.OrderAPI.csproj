@@ -1,11 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
-		<TargetFramework>net8.0</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<UserSecretsId>e4f14bb2-c5bd-426a-8682-9042c4aa5b20</UserSecretsId>
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+		<DockerfileContext>..\..</DockerfileContext>
+		<DockerComposeProjectPath>..\..\docker-compose.dcproj</DockerComposeProjectPath>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -24,8 +26,8 @@
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
 	</ItemGroup>
 
-	<!--<ItemGroup>
-	  <ProjectReference Include="..\Mango.MessageBus\Mango.MessageBus.csproj" />
-	</ItemGroup>-->
+	<ItemGroup>
+		<!--<ProjectReference Include="..\..\Integration\Mango.MessageBus\Mango.MessageBus.csproj" />-->
+	</ItemGroup>
 
 </Project>
