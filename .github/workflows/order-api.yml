@@ -64,8 +64,8 @@ jobs:
           file: ./Dockerfile
           push: ${{ github.event_name == 'push' }}
           tags: |
-            ghcr.io/mdkasims-ccg/mango.services.orderapi:latest
             ghcr.io/mdkasims-ccg/mango.services.orderapi:${{ github.sha }}
+            ${{ github.ref == 'refs/heads/main' && 'ghcr.io/mdkasims-ccg/mango.services.orderapi:latest' || '' }}
           secret-files: |
             nugetconfig=./nuget.ci.config
 
