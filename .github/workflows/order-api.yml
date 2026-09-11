@@ -66,6 +66,8 @@ jobs:
           tags: |
             ghcr.io/mdkasims-ccg/mango.services.orderapi:${{ github.sha }}
             ${{ github.ref == 'refs/heads/main' && 'ghcr.io/mdkasims-ccg/mango.services.orderapi:latest' || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           secret-files: |
             nugetconfig=./nuget.ci.config
 
