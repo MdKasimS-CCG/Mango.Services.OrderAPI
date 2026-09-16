@@ -72,6 +72,9 @@ namespace Mango.Services.OrderAPI.Controllers
             return _response;
         }
 
+        //TODO: create GET endpoint for all orders
+        //TODO: create GET endpoint for order by id
+
         //[HttpPost("CreateStripeSession")]
         //[Authorize]
         //public async Task<ResponseDto> CreateStripeSession([FromBody] PayementRequestDto paymentRequestDto)
