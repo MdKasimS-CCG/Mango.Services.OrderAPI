@@ -1,5 +1,5 @@
 using AutoMapper;
-
+using DotNetEnv;
 using Mango.MessageBus;
 using Mango.Services.OrderAPI;
 using Mango.Services.OrderAPI.Data;
@@ -7,18 +7,57 @@ using Mango.Services.OrderAPI.Extensions;
 using Mango.Services.OrderAPI.Service;
 using Mango.Services.OrderAPI.Service.IService;
 using Mango.Services.OrderAPI.Utility;
-
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+
+bool isRunningInContainer =
+    Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+
+if (!isRunningInContainer)
+{
+    Env.Load(".env");
+}
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Configuration.AddEnvironmentVariables();
+
+var mangoOptions = new MangoOptions
+{
+    Secret =
+        builder.Configuration["ApiSettings:Secret"]
+        ?? string.Empty,
+
+    Issuer =
+        builder.Configuration["ApiSettings:Issuer"]
+        ?? string.Empty,
+
+    Audience =
+        builder.Configuration["ApiSettings:Audience"]
+        ?? string.Empty,
+
+    DefaultConnection =
+        builder.Configuration["ConnectionStrings:DefaultConnection"]
+        ?? string.Empty,
+
+    ProductAPI =
+        builder.Configuration["ServiceUrls:ProductAPI"]
+        ?? string.Empty
+};
+
+builder.Services.AddSingleton(
+    Microsoft.Extensions.Options.Options.Create(mangoOptions));
+
 
 // Add services to the container.
 // TODO: Update auto-mapper
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(mangoOptions.DefaultConnection));
 IMapper mapper = MappingConfig.RegisterMaps().CreateMapper();
 builder.Services.AddSingleton(mapper);
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
@@ -33,8 +72,15 @@ builder.Services.AddScoped<IMessageProducer, RabbitMQMessageProducer>();
 /// The other way is shown in Web project
 /// Later, BackednApiAuthentcaitionHttpClientHandler was added.
 /// May be to acheive this in simple way, this way Httpclient was configured
-builder.Services.AddHttpClient("Product", u => u.BaseAddress =
-        new Uri(builder.Configuration["ServiceUrls:ProductAPI"])).AddHttpMessageHandler<BackendApiAuthenticationHttpClientHandler>();
+builder.Services.AddHttpClient("Product", (serviceProvider, client) =>
+{
+    var settings = serviceProvider
+        .GetRequiredService<IOptions<MangoOptions>>()
+        .Value;
+
+    client.BaseAddress = new Uri(settings.ProductAPI);
+})
+.AddHttpMessageHandler<BackendApiAuthenticationHttpClientHandler>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -64,7 +110,29 @@ builder.Services.AddSwaggerGen(option =>
 });
 
 //Adding Authentication
-builder.AddAppAuthentication();
+// Adding Authentication
+var key = Encoding.ASCII.GetBytes(mangoOptions.Secret);
+
+builder.Services.AddAuthentication(x =>
+{
+    x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(x =>
+{
+    x.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+
+        ValidateIssuer = true,
+        ValidIssuer = mangoOptions.Issuer,
+
+        ValidateAudience = true,
+        ValidAudience = mangoOptions.Audience
+    };
+});
+
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
@@ -78,6 +146,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
@@ -97,4 +166,13 @@ void ApplyMigration()
             _db.Database.Migrate();
         }
     }
+}
+
+public class MangoOptions
+{
+    public string Secret { get; set; } = string.Empty;
+    public string Issuer { get; set; } = string.Empty;
+    public string Audience { get; set; } = string.Empty;
+    public string DefaultConnection { get; set; } = string.Empty;
+    public string ProductAPI { get; set; } = string.Empty;
 }
