@@ -41,12 +41,16 @@ var mangoOptions = new MangoOptions
         ?? string.Empty,
 
     DefaultConnection =
-        builder.Configuration["ConnectionStrings:DefaultConnection"]
-        ?? string.Empty,
+    (isRunningInContainer
+        ? builder.Configuration["Docker:ConnectionStrings:DefaultConnection"]
+        : builder.Configuration["Http:ConnectionStrings:DefaultConnection"])
+    ?? string.Empty,
 
     ProductAPI =
-        builder.Configuration["ServiceUrls:ProductAPI"]
-        ?? string.Empty
+    (isRunningInContainer
+        ? builder.Configuration["Docker:ServiceUrls:ProductAPI"]
+        : builder.Configuration["Http:ServiceUrls:ProductAPI"])
+    ?? string.Empty
 };
 
 builder.Services.AddSingleton(
