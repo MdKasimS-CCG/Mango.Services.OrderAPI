@@ -6,7 +6,7 @@ using Mango.Services.OrderAPI.Models;
 using Mango.Services.OrderAPI.Models.Dto;
 using Mango.Services.OrderAPI.Service.IService;
 using Mango.Services.OrderAPI.Utility;
-
+using Mango.Services.OrderAPI.Messages;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -43,23 +43,77 @@ namespace Mango.Services.OrderAPI.Controllers
         }
 
         //TODO: Since it is with parameter, path in OrderService of Web, is different in Post of ProductService
+
         [HttpPost("CreateOrder")]
         [Authorize]
         public async Task<ResponseDto> CreateOrder([FromBody] CartDto cartDto)
         {
             try
             {
-                OrderHeaderDto orderHeaderDto = _mapper.Map<OrderHeaderDto>(cartDto.CartHeader);
+                // Read the queue names from configuration.
+                var emailQueue = _configuration[
+                    "TopicAndQueueNames:OrderCreatedEmailQueue"];
+
+                var rewardQueue = _configuration[
+                    "TopicAndQueueNames:OrderCreatedRewardQueue"];
+
+                if (string.IsNullOrWhiteSpace(emailQueue) ||
+                    string.IsNullOrWhiteSpace(rewardQueue))
+                {
+                    throw new InvalidOperationException(
+                        "OrderCreated queue names are not configured.");
+                }
+
+                OrderHeaderDto orderHeaderDto =
+                    _mapper.Map<OrderHeaderDto>(cartDto.CartHeader);
+
+                // Validate required event fields before saving the order.
+                if (string.IsNullOrWhiteSpace(orderHeaderDto.UserId) ||
+                    string.IsNullOrWhiteSpace(orderHeaderDto.Email))
+                {
+                    throw new InvalidOperationException(
+                        "Order requires a user ID and customer email.");
+                }
+
                 orderHeaderDto.OrderTime = DateTime.Now;
                 orderHeaderDto.Status = SD.Status_Pending;
-                orderHeaderDto.OrderDetails = _mapper.Map<IEnumerable<OrderDetailsDto>>(cartDto.CartDetails);
+                orderHeaderDto.OrderDetails =
+                    _mapper.Map<IEnumerable<OrderDetailsDto>>(
+                        cartDto.CartDetails);
 
-                //TODO: Checkout this what it is in detail .Entity
-                //TODO: Check whether await works here or not. Earlier it was not working or might be timing difference due to async-await
-                OrderHeader orderCreated = _db.OrderHeaders.Add(_mapper.Map<OrderHeader>(orderHeaderDto)).Entity;
+                // Save the order first so it receives a database ID.
+                OrderHeader orderCreated = _db.OrderHeaders
+                    .Add(_mapper.Map<OrderHeader>(orderHeaderDto)).Entity;
+
                 await _db.SaveChangesAsync();
 
                 orderHeaderDto.Id = orderCreated.Id;
+
+                // Build the shared OrderCreated event.
+                var orderCreatedEvent = new OrderCreatedEvent
+                {
+                    OrderId = orderCreated.Id,
+                    UserId = orderHeaderDto.UserId,
+                    CustomerEmail = orderHeaderDto.Email,
+                    TotalAmount = orderCreated.OrderTotal,
+                    Currency = "INR",
+                    OccurredAtUtc = DateTime.UtcNow,
+                    Items = orderHeaderDto.OrderDetails.Select(item =>
+                        new OrderCreatedItem
+                        {
+                            ProductId = item.ProductId,
+                            ProductName = item.ProductName,
+                            Quantity = item.Count,
+                            UnitPrice = item.Price
+                        }).ToList()
+                };
+
+                // Publish independently to each consumer queue.
+                await _messageBus.SendMessage(
+                    orderCreatedEvent, emailQueue);
+
+                await _messageBus.SendMessage(
+                    orderCreatedEvent, rewardQueue);
 
                 _response.Result = orderHeaderDto;
             }
@@ -71,6 +125,7 @@ namespace Mango.Services.OrderAPI.Controllers
 
             return _response;
         }
+
 
         //TODO: create GET endpoint for all orders
         //TODO: create GET endpoint for order by id

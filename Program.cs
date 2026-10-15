@@ -62,6 +62,8 @@ builder.Services.AddSingleton(
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(mangoOptions.DefaultConnection));
+builder.Services.Configure<RabbitMqSettings>(
+    builder.Configuration.GetSection("MessageQueue:RabbitMQ"));
 IMapper mapper = MappingConfig.RegisterMaps().CreateMapper();
 builder.Services.AddSingleton(mapper);
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
