@@ -1,3 +1,4 @@
+
 # syntax=docker/dockerfile:1
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
@@ -10,23 +11,29 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
-COPY ["Mango.Services.OrderAPI.csproj", "./"]
+COPY ["Mango.Services.OrderAPI/Mango.Services.OrderAPI.csproj", "Mango.Services.OrderAPI/"]
+COPY ["Mango.MessageBus/Mango.MessageBus.csproj", "Mango.MessageBus/"]
 
 RUN --mount=type=secret,id=nugetconfig \
-    dotnet restore "./Mango.Services.OrderAPI.csproj" \
+    dotnet restore "Mango.Services.OrderAPI/Mango.Services.OrderAPI.csproj" \
     --configfile /run/secrets/nugetconfig
 
-COPY . .
+COPY Mango.Services.OrderAPI/ Mango.Services.OrderAPI/
+COPY Mango.MessageBus/ Mango.MessageBus/
 
-RUN dotnet build "./Mango.Services.OrderAPI.csproj" \
+WORKDIR /src/Mango.Services.OrderAPI
+
+RUN dotnet build "Mango.Services.OrderAPI.csproj" \
     -c $BUILD_CONFIGURATION \
+    --no-restore \
     -o /app/build
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 
-RUN dotnet publish "./Mango.Services.OrderAPI.csproj" \
+RUN dotnet publish "Mango.Services.OrderAPI.csproj" \
     -c $BUILD_CONFIGURATION \
+    --no-restore \
     -o /app/publish \
     /p:UseAppHost=false
 
