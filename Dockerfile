@@ -12,14 +12,13 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
 COPY ["Mango.Services.OrderAPI/Mango.Services.OrderAPI.csproj", "Mango.Services.OrderAPI/"]
-COPY ["Mango.MessageBus/Mango.MessageBus.csproj", "Mango.MessageBus/"]
 
-RUN --mount=type=secret,id=nugetconfig \
+RUN --mount=type=bind,from=localnuget,target=/localnuget,ro \
     dotnet restore "Mango.Services.OrderAPI/Mango.Services.OrderAPI.csproj" \
-    --configfile /run/secrets/nugetconfig
+    --source /localnuget \
+    --source https://api.nuget.org/v3/index.json
 
 COPY Mango.Services.OrderAPI/ Mango.Services.OrderAPI/
-COPY Mango.MessageBus/ Mango.MessageBus/
 
 WORKDIR /src/Mango.Services.OrderAPI
 

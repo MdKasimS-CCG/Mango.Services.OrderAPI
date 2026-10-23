@@ -62,8 +62,40 @@ builder.Services.AddSingleton(
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(mangoOptions.DefaultConnection));
-builder.Services.Configure<RabbitMqSettings>(
-    builder.Configuration.GetSection("MessageQueue:RabbitMQ"));
+
+
+builder.Services
+    .AddOptions<RabbitMqSettings>()
+    .Bind(builder.Configuration.GetSection("MessageQueue:RabbitMQ"))
+    .Validate(
+        settings => !string.IsNullOrWhiteSpace(settings.HostName),
+        "RabbitMQ HostName is required.")
+    .Validate(
+        settings => settings.Port is >= 1 and <= 65535,
+        "RabbitMQ Port must be between 1 and 65535.")
+    .Validate(
+        settings => !string.IsNullOrWhiteSpace(settings.UserName),
+        "RabbitMQ UserName is required.")
+    .Validate(
+        settings => !string.IsNullOrWhiteSpace(settings.Password),
+        "RabbitMQ Password is required.")
+    .Validate(
+        settings => !string.IsNullOrWhiteSpace(settings.VirtualHost),
+        "RabbitMQ VirtualHost is required.")
+    .ValidateOnStart();
+
+builder.Services
+    .AddOptions<OrderQueueOptions>()
+    .Bind(builder.Configuration.GetSection("TopicAndQueueNames"))
+    .Validate(
+        options => !string.IsNullOrWhiteSpace(options.OrderCreatedEmailQueue),
+        "TopicAndQueueNames:OrderCreatedEmailQueue is required.")
+    .Validate(
+        options => !string.IsNullOrWhiteSpace(options.OrderCreatedRewardQueue),
+        "TopicAndQueueNames:OrderCreatedRewardQueue is required.")
+    .ValidateOnStart();
+
+
 IMapper mapper = MappingConfig.RegisterMaps().CreateMapper();
 builder.Services.AddSingleton(mapper);
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
@@ -72,7 +104,7 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<BackendApiAuthenticationHttpClientHandler>();
 // Note: Do remember, this is unlike tutor's Azure Service Bus. It uses RabbitMQ implementation in main branch itself.
-builder.Services.AddScoped<IMessageProducer, RabbitMQMessageProducer>();
+builder.Services.AddSingleton<IMessageProducer, RabbitMQMessageProducer>();
 
 /// Another way to configure Httpclient service.
 /// The other way is shown in Web project
@@ -181,4 +213,10 @@ public class MangoOptions
     public string Audience { get; set; } = string.Empty;
     public string DefaultConnection { get; set; } = string.Empty;
     public string ProductAPI { get; set; } = string.Empty;
+}
+public sealed class OrderQueueOptions
+{
+    public string OrderCreatedEmailQueue { get; set; } = string.Empty;
+
+    public string OrderCreatedRewardQueue { get; set; } = string.Empty;
 }
