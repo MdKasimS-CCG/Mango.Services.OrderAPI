@@ -20,6 +20,7 @@ namespace Mango.Services.OrderAPI.Controllers
         private readonly AppDbContext _db;
         private readonly IMapper _mapper;
         private readonly IMessageProducer _messageBus;
+        private readonly ILogger<OrderAPIController> _logger;
 
         /// <summary>
         /// Dont Make it private readonly, else it will be null.
@@ -31,7 +32,8 @@ namespace Mango.Services.OrderAPI.Controllers
         public OrderAPIController(AppDbContext db, IMapper mapper
                                 , IProductService productService
                                 , IMessageProducer messageBus
-                                , IConfiguration configuration)
+                                , IConfiguration configuration
+                                , ILogger<OrderAPIController> logger)
         {
             _db = db;
             _mapper = mapper;
@@ -40,6 +42,7 @@ namespace Mango.Services.OrderAPI.Controllers
             _configuration = configuration;
             _response = new ResponseDto();
             _configuration = configuration;
+            _logger = logger;
         }
 
         //TODO: Since it is with parameter, path in OrderService of Web, is different in Post of ProductService
@@ -108,14 +111,41 @@ namespace Mango.Services.OrderAPI.Controllers
                         }).ToList()
                 };
 
-                // Publish independently to each consumer queue.
+
+            _response.Result = orderHeaderDto;
+
+            // The order is already saved. A publishing failure must not
+            // make the client think that order creation itself failed.
+            _response.IsSuccess = true;
+
+            try
+            {
                 await _messageBus.SendMessage(
                     orderCreatedEvent, emailQueue);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Order {OrderId} was saved, but publishing the email event to queue {QueueName} failed.",
+                    orderCreated.Id,
+                    emailQueue);
+            }
 
+            try
+            {
                 await _messageBus.SendMessage(
                     orderCreatedEvent, rewardQueue);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Order {OrderId} was saved, but publishing the reward event to queue {QueueName} failed.",
+                    orderCreated.Id,
+                    rewardQueue);
+            }
 
-                _response.Result = orderHeaderDto;
             }
             catch (Exception ex)
             {
