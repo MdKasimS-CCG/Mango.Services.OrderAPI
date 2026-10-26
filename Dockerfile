@@ -11,16 +11,13 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
-COPY ["Mango.Services.OrderAPI/Mango.Services.OrderAPI.csproj", "Mango.Services.OrderAPI/"]
+COPY ["Mango.Services.OrderAPI.csproj", "./"]
 
-RUN --mount=type=bind,from=localnuget,target=/localnuget,ro \
-    dotnet restore "Mango.Services.OrderAPI/Mango.Services.OrderAPI.csproj" \
-    --source /localnuget \
-    --source https://api.nuget.org/v3/index.json
+RUN --mount=type=secret,id=nugetconfig,target=/run/secrets/nuget.config,required=true \
+    dotnet restore "Mango.Services.OrderAPI.csproj" \
+    --configfile /run/secrets/nuget.config
 
-COPY Mango.Services.OrderAPI/ Mango.Services.OrderAPI/
-
-WORKDIR /src/Mango.Services.OrderAPI
+COPY . .
 
 RUN dotnet build "Mango.Services.OrderAPI.csproj" \
     -c $BUILD_CONFIGURATION \
@@ -38,7 +35,5 @@ RUN dotnet publish "Mango.Services.OrderAPI.csproj" \
 
 FROM base AS final
 WORKDIR /app
-
 COPY --from=publish /app/publish .
-
 ENTRYPOINT ["dotnet", "Mango.Services.OrderAPI.dll"]

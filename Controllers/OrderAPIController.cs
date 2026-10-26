@@ -10,6 +10,7 @@ using Mango.Services.OrderAPI.Messages;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Mango.Services.OrderAPI.Controllers
 {
@@ -26,22 +27,23 @@ namespace Mango.Services.OrderAPI.Controllers
         /// Dont Make it private readonly, else it will be null.
         /// </summary>
         private IProductService _productService;
-        private IConfiguration _configuration;
+        private readonly OrderQueueOptions _queueOptions;
         private readonly ResponseDto _response;
 
-        public OrderAPIController(AppDbContext db, IMapper mapper
-                                , IProductService productService
-                                , IMessageProducer messageBus
-                                , IConfiguration configuration
-                                , ILogger<OrderAPIController> logger)
+        public OrderAPIController(
+            AppDbContext db,
+            IMapper mapper,
+            IProductService productService,
+            IMessageProducer messageBus,
+            IOptions<OrderQueueOptions> queueOptions,
+            ILogger<OrderAPIController> logger)
         {
             _db = db;
             _mapper = mapper;
             _messageBus = messageBus;
             _productService = productService;
-            _configuration = configuration;
+            _queueOptions = queueOptions.Value;
             _response = new ResponseDto();
-            _configuration = configuration;
             _logger = logger;
         }
 
@@ -54,11 +56,9 @@ namespace Mango.Services.OrderAPI.Controllers
             try
             {
                 // Read the queue names from configuration.
-                var emailQueue = _configuration[
-                    "TopicAndQueueNames:OrderCreatedEmailQueue"];
-
-                var rewardQueue = _configuration[
-                    "TopicAndQueueNames:OrderCreatedRewardQueue"];
+                // Read the validated queue names from options.
+                var emailQueue = _queueOptions.OrderCreatedEmailQueue;
+                var rewardQueue = _queueOptions.OrderCreatedRewardQueue;
 
                 if (string.IsNullOrWhiteSpace(emailQueue) ||
                     string.IsNullOrWhiteSpace(rewardQueue))
@@ -112,39 +112,67 @@ namespace Mango.Services.OrderAPI.Controllers
                 };
 
 
-            _response.Result = orderHeaderDto;
 
-            // The order is already saved. A publishing failure must not
-            // make the client think that order creation itself failed.
-            _response.IsSuccess = true;
+                _response.Result = orderHeaderDto;
+                _response.IsSuccess = true;
 
-            try
-            {
-                await _messageBus.SendMessage(
-                    orderCreatedEvent, emailQueue);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Order {OrderId} was saved, but publishing the email event to queue {QueueName} failed.",
-                    orderCreated.Id,
-                    emailQueue);
-            }
+                // Publish independently to each consumer queue.
+                // The shared MessageBus library applies the supplied queue options.
 
-            try
-            {
-                await _messageBus.SendMessage(
-                    orderCreatedEvent, rewardQueue);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Order {OrderId} was saved, but publishing the reward event to queue {QueueName} failed.",
-                    orderCreated.Id,
-                    rewardQueue);
-            }
+                var emailQueueOptions = new RabbitMqQueueOptions
+                {
+                    Durable = true,
+                    Arguments = new Dictionary<string, object?>
+                    {
+                        ["x-dead-letter-exchange"] = "email.dlx",
+                        ["x-dead-letter-routing-key"] = emailQueue
+                    }
+                };
+
+                try
+                {
+                    await _messageBus.SendMessage(
+                        orderCreatedEvent,
+                        emailQueue,
+                        orderCreatedEvent.EventId.ToString(),
+                        emailQueueOptions);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Order {OrderId} was saved, but publishing the email event to queue {QueueName} failed.",
+                        orderCreated.Id,
+                        emailQueue);
+                }
+
+                var rewardQueueOptions = new RabbitMqQueueOptions
+                {
+                    Durable = true,
+                    Arguments = new Dictionary<string, object?>
+                    {
+                        ["x-dead-letter-exchange"] = "reward.dlx",
+                        ["x-dead-letter-routing-key"] = "rewardordercreated"
+                    }
+                };
+
+                try
+                {
+                    await _messageBus.SendMessage(
+                        orderCreatedEvent,
+                        rewardQueue,
+                        orderCreatedEvent.EventId.ToString(),
+                        rewardQueueOptions);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Order {OrderId} was saved, but publishing the reward event to queue {QueueName} failed.",
+                        orderCreated.Id,
+                        rewardQueue);
+                }
+
 
             }
             catch (Exception ex)
