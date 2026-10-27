@@ -152,7 +152,7 @@ namespace Mango.Services.OrderAPI.Controllers
                     Arguments = new Dictionary<string, object?>
                     {
                         ["x-dead-letter-exchange"] = "reward.dlx",
-                        ["x-dead-letter-routing-key"] = "rewardordercreated"
+                        ["x-dead-letter-routing-key"] = rewardQueue
                     }
                 };
 
